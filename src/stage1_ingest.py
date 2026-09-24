@@ -2,193 +2,216 @@ import os
 import zipfile
 import time
 import easyocr
+import ssl
+import cv2
+import urllib.request
 import pandas as pd
 import numpy as np
-from typing import Union, IO
+from typing import Union, IO, Generator, Tuple
 from PIL import Image, UnidentifiedImageError
-from tqdm import tqdm
 
+# ----------------------------------------------------------------------
+# KHẮC PHỤC LỖI SSL CERTIFICATE KHI EASYOCR TẢI MODEL LẦN ĐẦU
+# ----------------------------------------------------------------------
+ssl._create_default_https_context = ssl._create_unverified_context
+urllib.request.install_opener(
+    urllib.request.build_opener(
+        urllib.request.HTTPSHandler(context=ssl._create_unverified_context())
+    )
+)
+
+# Danh sách 10 cột chuẩn dành cho Stage 2 & Stage 3
+SYSTEM_COLUMNS = [
+    "stt", "source_file", "data_type", "username", "password_raw",
+    "pin_raw", "salt", "password_hash", "pin_encrypted", "is_secure"
+]
 
 ########## Target 1: Đọc các file csv, jpg, zip #######################################
-def ingest_csv(file_path: Union[str, IO]) -> pd.DataFrame:
-# Danh sách các bảng mã sắp xếp theo độ ưu tiên giảm dần
-    encodings_to_try = ['utf-8-sig', 'utf-8', 'cp1258', 'latin1']
 
+def ingest_csv(file_path: Union[str, IO], custom_filename: str = None) -> pd.DataFrame:
+    encodings_to_try = ['utf-8-sig', 'utf-8', 'cp1258', 'latin1']
     df = None
 
     for enc in encodings_to_try:
         try:
-            # Thử đọc file với bảng mã hiện tại
-            df = pd.read_csv(file_path, encoding=enc, sep = None, engine = 'python')
-            print(f"Đọc file thành công bằng bảng mã: {enc}")
-            break  # Nếu thành công thì thoát vòng lặp ngay
-        except UnicodeDecodeError:
-            print(f"Thất bại với bảng mã: {enc}. Đang thử bảng mã tiếp theo...")
+            df = pd.read_csv(file_path, encoding=enc, sep=None, engine='python')
+            break
+        except Exception:
             if hasattr(file_path, 'seek'):
-                file_path.seek(0)            # tua ngược để thử các encoding phía sau
+                file_path.seek(0)
 
-    # Kiểm tra kết quả sau khi thử hết danh sách
-    if df is not None:
-        # Xử lý dọn dẹp ký tự rác ẩn ï»¿ (BOM) ở tên cột nếu chẳng may rơi vào latin1
-        df.columns = df.columns.str.replace('ï»¿', '', regex=False)
-    
-        # Hiển thị thử dữ liệu
+    if df is not None and not df.empty:
+        # Xử lý dọn dẹp ký tự BOM ẩn
+        df.columns = df.columns.astype(str).str.replace('ï»¿', '', regex=False).str.strip()
+
+        # 1. Đánh STT từ 1 đến N
+        df['stt'] = range(1, len(df) + 1)
+
+        # 2. Gán metadata nguồn và kiểu dữ liệu
+        if custom_filename:
+            df["source_file"] = custom_filename
+        elif isinstance(file_path, str):
+            df["source_file"] = os.path.basename(file_path)
+
+        df["data_type"] = "CSV_RAW"
+
+        # 3. Bổ sung các cột hệ thống chưa có với giá trị None
+        for col in SYSTEM_COLUMNS:
+            if col not in df.columns:
+                df[col] = None  
+
         return df
     else:
-        print("Không thể đọc được file bằng bất kỳ bảng mã phổ biến nào! Gửi lại file.")
+        print(f"❌ Không thể đọc được file CSV bằng bất kỳ bảng mã nào!")
         return pd.DataFrame()
- 
+
+
 ############################################################################################
-# Khởi tạo EasyOCR reader 1 lần duy nhất ở cấp module (global) (Tránh load lại Model mỗi khi gọi hàm)
-# gpu=False nếu chạy trên CPU, gpu=True nếu máy có GPU NVIDIA
-reader = easyocr.Reader(['vi'], gpu=False)    
-def ingest_jpg(file_path: str, custom_filename: str = None) -> pd.DataFrame:
-    # Nếu file_input là chuỗi đường dẫn, lấy tên file từ ổ cứng. 
-    # Nếu là luồng byte từ ZIP, ta dùng tên file truyền từ ngoài vào qua custom_filename.
-    # lấy tên file và đuôi mở rộng
+# Khởi tạo EasyOCR reader 1 lần duy nhất ở cấp module
+reader = easyocr.Reader(['vi', 'en'], gpu=True)
+def preprocess_image_for_ocr(img_pil: Image.Image) -> np.ndarray:
+    """
+    Tiền xử lý ảnh giúp EasyOCR đọc chuẩn font Tiếng Việt và số:
+    - Phóng to ảnh nhẹ nếu chữ quá nhỏ
+    - Tăng độ tương phản và sắc nét
+    """
+    # Chuyển sang OpenCV format (BGR)
+    img_cv = cv2.cvtColor(np.array(img_pil.convert("RGB")), cv2.COLOR_RGB2BGR)
+    
+    # Chuyển ảnh xám
+    gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+    
+    # Resize phóng to 1.5 lần nếu ảnh nhỏ để EasyOCR soi rõ nét chữ
+    h, w = gray.shape[:2]
+    if w < 1500:
+        gray = cv2.resize(gray, (int(w * 1.5), int(h * 1.5)), interpolation=cv2.INTER_CUBIC)
+        
+    # Tăng độ tương phản bằng CLAHE
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    enhanced = clahe.apply(gray)
+    
+    return enhanced
+
+def ingest_jpg(file_path: Union[str, IO], custom_filename: str = None) -> pd.DataFrame:
     if isinstance(file_path, str):
         file_name = os.path.basename(file_path)
     else:
         file_name = custom_filename if custom_filename else "unknown_image.jpg"
 
-     # Khởi tạo schema mặc định chống trùng lặp code
     default_row = {
-        "stt": None, "source_file": file_name, "data_type": "IMAGE_ERROR",
+        "stt": 1, "source_file": file_name, "data_type": "IMAGE_ERROR",
         "username": f"img_err_{file_name}", "password_raw": None,
         "pin_raw": None, "salt": None, "password_hash": None,
         "pin_encrypted": None, "is_secure": None
     }
 
-    # BƯỚC 1: Kiểm tra tính hợp lệ cấu hình ảnh bằng Pillow
     try:
         with Image.open(file_path) as img:
-            img.verify() # Kiểm tra file có bị hỏng cấu trúc không
+            img.verify()
     except (UnidentifiedImageError, OSError, Exception):
-        # File ảnh lỗi cấu trúc, giả mạo đuôi hoặc không đọc được hoàn toàn
         default_row["data_type"] = "IMAGE_CORRUPTED"
         return pd.DataFrame([default_row])
 
-    # BƯỚC 2: Mở lại ảnh an toàn và chuyển dữ liệu sang EasyOCR xử lý
     try:
-        # tua ngược
         if hasattr(file_path, 'seek'):
             file_path.seek(0)
-        
+
         with Image.open(file_path) as img:
-            # Chuyển ảnh sang định dạng RGB và ép Pillow load toàn bộ pixel vào RAM
-            img = img.convert("RGB")
-            img.load()
+            # Tiền xử lý ảnh nâng cao độ tương phản
+            processed_img = preprocess_image_for_ocr(img)
             
-            # Chuyển đối tượng Pillow thành mảng Numpy để truyền vào EasyOCR an toàn 100%
-            img_array = np.array(img)
-            
-        # Gọi EasyOCR bằng mảng dữ liệu trong RAM (Không lo bị lock file ổ cứng)
-        results = reader.readtext(img_array, detail=0)
-        
+
+
+        results = reader.readtext(
+            processed_img,
+            detail=0,
+            paragraph=True,       # Nhóm các dòng bản in gần nhau thành đoạn văn chuẩn
+            contrast_ths=0.1,     # Giảm ngưỡng tương phản để nhận diện chữ mờ
+            adjust_contrast=0.5   # Tự động chỉnh độ tương phản khi quét
+        )
+
         if results:
-            # 1. Ảnh chứa chữ (Hóa đơn, chứng từ, đoạn text...)
             default_row["data_type"] = "IMAGE_OCR"
             default_row["username"] = f"img_ocr_{file_name}"
             default_row["password_raw"] = " ".join(results)
         else:
-            # 2. Ảnh không chứa chữ (Phong cảnh, ảnh trống...)
             default_row["data_type"] = "IMAGE_METADATA"
             default_row["username"] = f"img_meta_{file_name}"
             default_row["password_raw"] = None
 
-    except Exception as e:
-        # Xử lý các lỗi phát sinh trong quá trình OCR (Ví dụ: Ảnh quá lớn gây tràn RAM)
+    except Exception:
         default_row["data_type"] = "IMAGE_ERROR"
         default_row["username"] = f"img_err_{file_name}"
-        default_row["password_raw"] = None
 
-    # Trả về 1 dòng DataFrame chuẩn Schema của bạn
-    return pd.DataFrame([default_row])   
- 
-############################################################################################   
-def ingest_zip(file_path: str) -> pd.DataFrame:
-    dfs = []
-    zip_name = os.path.basename(file_path)
-
-    try:
-        with zipfile.ZipFile(file_path, 'r') as z:
-            for filename in z.namelist():
-                # Bỏ qua thư mục rác hoặc file hệ thống của MacOS/Windows
-                if filename.endswith('/') or filename.startswith('__MACOSX'):
-                    continue
-                
-                ext = "." + filename.split(".")[-1].lower()
-                #z.open(filename) để biến nó thành một luồng dữ liệu trên RAM và truyền thẳng đối tượng đó vào hàm.
-                # TRƯỜNG HỢP 1: File CSV trong ZIP
-                if ext == '.csv':
-                    with z.open(filename) as f:
-                    # Truyền trực tiếp luồng byte 'f' vào hàm ngoài
-                        df = ingest_csv(f)
-        
-                    if not df.empty:
-                        df['source_file'] = f"{zip_name}/{filename}"
-                    dfs.append(df)
-
-                # TRƯỜNG HỢP 2: File Ảnh (JPG/PNG) trong ZIP
-                elif ext in ['.jpg', '.jpeg', '.png']:
-                    with z.open(filename) as f:
-                        # Truyền luồng byte 'f' và tên file ảo trong zip vào hàm ngoài
-                        df = ingest_jpg(f, custom_filename=filename)
-                    if not df.empty:
-                        df['source_file'] = f"{zip_name}/{filename}"
-                        dfs.append(df)                   
-
-    except Exception as e:
-        print(f"Lỗi khi đọc file ZIP {zip_name}: {e}")
-
-    # Gộp tất cả DataFrame con tìm được trong ZIP thành 1 DataFrame duy nhất
-    if dfs:
-        return pd.concat(dfs, ignore_index=True)
-    else:
-        return pd.DataFrame()    
-    
-########## Target 2: Cấu trúc bảng ####################################################
-
-########## Target 3: Làm sạch & Kiểm soát Lỗi Dữ liệu #################################
+    return pd.DataFrame([default_row])
 
 
-########## Target 4: Trực quan hóa Tiến trình #########################################
+############################################################################################
 
+def process_file_stream(file_path: str) -> Generator[Tuple[str, pd.DataFrame], None, None]:
+    if not os.path.exists(file_path):
+        print(f"❌ File không tồn tại: {file_path}")
+        return
 
-########## Target 5: Đầu ra Chuẩn cho Stage 2 #########################################
+    file_name = os.path.basename(file_path)
+    ext = os.path.splitext(file_name)[1].lower()
 
-def process_single_file(file_path: str) -> pd.DataFrame:
-    """Router nhận diện đuôi file và gọi hàm ingest tương ứng"""
-    ext = os.path.splitext(file_path)[1].lower()
-    
-    # 1. Trường hợp file riêng lẻ là CSV
     if ext == '.csv':
-        return ingest_csv(file_path)
-    
-    # 2. Trường hợp file riêng lẻ là Ảnh (JPG/PNG)
+        df = ingest_csv(file_path)
+        if not df.empty:
+            yield file_name, df
+
     elif ext in ['.jpg', '.jpeg', '.png']:
-        return ingest_jpg(file_path)
-    
-    # 3. Trường hợp file Nén ZIP (chứa các file CSV/JSON bên trong)
+        df = ingest_jpg(file_path)
+        if not df.empty:
+            yield file_name, df
+
     elif ext == '.zip':
-        return ingest_zip(file_path)
-    
-    else:
-        print(f"Định dạng file không hỗ trợ: {file_path}")
-        return pd.DataFrame()
+        try:
+            with zipfile.ZipFile(file_path, 'r') as z:
+                for inner_file in z.namelist():
+                    if inner_file.endswith('/') or inner_file.startswith('__MACOSX') or inner_file.startswith('.'):
+                        continue
+
+                    inner_ext = "." + inner_file.split(".")[-1].lower()
+                    virtual_path = f"{file_name}/{inner_file}"
+
+                    if inner_ext == '.csv':
+                        with z.open(inner_file) as f:
+                            df = ingest_csv(f, custom_filename=virtual_path)
+                            if not df.empty:
+                                yield virtual_path, df
+
+                    elif inner_ext in ['.jpg', '.jpeg', '.png']:
+                        with z.open(inner_file) as f:
+                            df = ingest_jpg(f, custom_filename=virtual_path)
+                            if not df.empty:
+                                yield virtual_path, df
+
+        except Exception as e:
+            print(f"❌ Lỗi khi đọc file ZIP {file_name}: {e}")
 
 
-def run_stage1_pipeline(input_dir="./input_data", output_dir="./output_stage1"):
-    # ... (Code nạp các file và gộp thành final_df) ...
+# ----------------------------------------------------------------------
+# RUNNER XUẤT RA THƯ MỤC OUTPUT_DATA
+# ----------------------------------------------------------------------
+def run_stage_1(input_path: str, output_dir: str = "output_data"):
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
+    print(f"🚀 Bắt đầu Stage 1 cho file: {input_path}")
     
-    # KHI ĐÃ CÓ FINAL_DF HOÀN CHỈNH:
-    if not final_df.empty:
-        # Tạo thư mục output nếu chưa có
-        os.makedirs(output_dir, exist_ok=True)
-        
-        # Lưu file sao lưu Stage 1
-        output_file_path = os.path.join(output_dir, "stage1_output_cleaned.csv")
-        final_df.to_csv(output_file_path, index=False, encoding='utf-8-sig')
-        print(f"Đã lưu bản sao dữ liệu Stage 1 tại: {output_file_path}")
-        
-    return final_df
+    for virtual_path, df_result in process_file_stream(input_path):
+        # Tạo tên file không bị trùng đè khi có thư mục con trong ZIP
+        safe_name = virtual_path.replace('/', '_').replace('\\', '_')
+        clean_name = os.path.splitext(safe_name)[0]
+        out_file = os.path.join(output_dir, f"stage1_{clean_name}.csv")
+
+        # Xuất ra file CSV
+        df_result.to_csv(out_file, index=False, encoding='utf-8-sig', na_rep='None')
+        print(f"  [✓] Đã xuất file: {out_file} ({len(df_result)} dòng)")
+
+if __name__ == "__main__":
+    # Điền file test ở đây
+    input_file = input("Nhập đường dẫn file cần xử lý: ").strip(' "\'')
+    run_stage_1(input_file, output_dir="output_data")

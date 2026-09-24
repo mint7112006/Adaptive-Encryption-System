@@ -1,9 +1,11 @@
 import os
+import re
 import zipfile
 import time
 import easyocr
 import ssl
 import cv2
+import unicodedata
 import urllib.request
 import pandas as pd
 import numpy as np
@@ -11,7 +13,7 @@ from typing import Union, IO, Generator, Tuple
 from PIL import Image, UnidentifiedImageError
 
 # ----------------------------------------------------------------------
-# KHẮC PHỤC LỖI SSL CERTIFICATE KHI EASYOCR TẢI MODEL LẦN ĐẦU
+# SSL CERTIFICATE KHI EASYOCR TẢI MODEL LẦN ĐẦU
 # ----------------------------------------------------------------------
 ssl._create_default_https_context = ssl._create_unverified_context
 urllib.request.install_opener(
@@ -19,6 +21,31 @@ urllib.request.install_opener(
         urllib.request.HTTPSHandler(context=ssl._create_unverified_context())
     )
 )
+
+
+def clean_header_to_snake_case(header_name: str) -> str:
+    """
+    Chuyển đổi tên cột về chữ viết không dấu, chữ thường, nối bằng dấu '_'
+    Ví dụ: 'Mật Khẩu / Giao Dịch' -> 'mat_khau_giao_dich'
+    """
+    if not isinstance(header_name, str):
+        header_name = str(header_name)
+
+    # 1. Bỏ ký tự BOM ẩn và khoảng trắng 2 đầu
+    text = header_name.replace('ï»¿', '').strip()
+    
+    # 2. Chuyển Unicode NFD để tách dấu ra khỏi chữ
+    text = unicodedata.normalize('NFD', text)
+    text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
+    text = text.replace('đ', 'd').replace('Đ', 'd').lower()
+
+    # 3. Thay thế các ký tự không phải chữ cái/số (khoảng trắng, /, -,...) bằng dấu '_'
+    text = re.sub(r'[^a-z0-9]+', '_', text)
+
+    # 4. Bỏ các dấu '_' thừa ở đầu, cuối hoặc bị lặp (___)
+    text = re.sub(r'_+', '_', text).strip('_')
+
+    return text
 
 # Danh sách 10 cột chuẩn dành cho Stage 2 & Stage 3
 SYSTEM_COLUMNS = [
@@ -35,20 +62,28 @@ def ingest_csv(file_path: Union[str, IO], custom_filename: str = None) -> pd.Dat
     for enc in encodings_to_try:
         try:
             df = pd.read_csv(file_path, encoding=enc, sep=None, engine='python')
+            print(f"Đọc file thành công bằng bảng mã: {enc}")
             break
         except Exception:
+            print(f"Thất bại với bảng mã: {enc}. Đang thử bảng mã tiếp theo...")
             if hasattr(file_path, 'seek'):
                 file_path.seek(0)
 
     if df is not None and not df.empty:
-        # Xử lý dọn dẹp ký tự BOM ẩn
+        # Xử lý dọn dẹp ký tự BOM ẩn, chuẩn hóa sang kiểu snake_case
         df.columns = df.columns.astype(str).str.replace('ï»¿', '', regex=False).str.strip()
-
+        df.columns = [clean_header_to_snake_case(col) for col in df.columns]
+        
+        # DỌN KHOẢNG TRẮNG CHO DỮ LIỆU CHUỖI (GIỮ NGUYÊN BẢN VĂN BẢN GỐC)
+        for col in df.select_dtypes(include=['object']).columns:
+            df[col] = df[col].astype(str).str.strip()
+            
+            
         # 1. Đánh STT từ 1 đến N
         df['stt'] = range(1, len(df) + 1)
 
         # 2. Gán metadata nguồn và kiểu dữ liệu
-        if custom_filename:
+        if custom_filename: # nếu là bytes stream, file zip
             df["source_file"] = custom_filename
         elif isinstance(file_path, str):
             df["source_file"] = os.path.basename(file_path)
@@ -62,7 +97,7 @@ def ingest_csv(file_path: Union[str, IO], custom_filename: str = None) -> pd.Dat
 
         return df
     else:
-        print(f"❌ Không thể đọc được file CSV bằng bất kỳ bảng mã nào!")
+        print(f"Không thể đọc được file CSV bằng bất kỳ bảng mã nào!")
         return pd.DataFrame()
 
 
@@ -107,7 +142,7 @@ def ingest_jpg(file_path: Union[str, IO], custom_filename: str = None) -> pd.Dat
 
     try:
         with Image.open(file_path) as img:
-            img.verify()
+            img.verify()           # Kiểm tra file có bị hỏng cấu trúc không
     except (UnidentifiedImageError, OSError, Exception):
         default_row["data_type"] = "IMAGE_CORRUPTED"
         return pd.DataFrame([default_row])
@@ -120,8 +155,6 @@ def ingest_jpg(file_path: Union[str, IO], custom_filename: str = None) -> pd.Dat
             # Tiền xử lý ảnh nâng cao độ tương phản
             processed_img = preprocess_image_for_ocr(img)
             
-
-
         results = reader.readtext(
             processed_img,
             detail=0,
@@ -133,7 +166,8 @@ def ingest_jpg(file_path: Union[str, IO], custom_filename: str = None) -> pd.Dat
         if results:
             default_row["data_type"] = "IMAGE_OCR"
             default_row["username"] = f"img_ocr_{file_name}"
-            default_row["password_raw"] = " ".join(results)
+            default_row["password_raw"] = " ".join(results).strip()
+        # ảnh không có dữ liệu
         else:
             default_row["data_type"] = "IMAGE_METADATA"
             default_row["username"] = f"img_meta_{file_name}"
@@ -150,7 +184,7 @@ def ingest_jpg(file_path: Union[str, IO], custom_filename: str = None) -> pd.Dat
 
 def process_file_stream(file_path: str) -> Generator[Tuple[str, pd.DataFrame], None, None]:
     if not os.path.exists(file_path):
-        print(f"❌ File không tồn tại: {file_path}")
+        print(f"File không tồn tại: {file_path}")
         return
 
     file_name = os.path.basename(file_path)
@@ -170,6 +204,7 @@ def process_file_stream(file_path: str) -> Generator[Tuple[str, pd.DataFrame], N
         try:
             with zipfile.ZipFile(file_path, 'r') as z:
                 for inner_file in z.namelist():
+                    # Bỏ qua thư mục rác hoặc file hệ thống của MacOS/Windows
                     if inner_file.endswith('/') or inner_file.startswith('__MACOSX') or inner_file.startswith('.'):
                         continue
 
@@ -189,7 +224,7 @@ def process_file_stream(file_path: str) -> Generator[Tuple[str, pd.DataFrame], N
                                 yield virtual_path, df
 
         except Exception as e:
-            print(f"❌ Lỗi khi đọc file ZIP {file_name}: {e}")
+            print(f"Lỗi khi đọc file ZIP {file_name}: {e}")
 
 
 # ----------------------------------------------------------------------
@@ -199,8 +234,10 @@ def run_stage_1(input_path: str, output_dir: str = "output_data"):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 
-    print(f"🚀 Bắt đầu Stage 1 cho file: {input_path}")
+    print(f"Bắt đầu Stage 1 cho file: {input_path}")
     
+    # KHỞI TẠO DANH SÁCH RỖNG ĐỂ CHỨA ĐƯỜNG DẪN FILE MỚI
+    created_files = []
     for virtual_path, df_result in process_file_stream(input_path):
         # Tạo tên file không bị trùng đè khi có thư mục con trong ZIP
         safe_name = virtual_path.replace('/', '_').replace('\\', '_')
@@ -210,8 +247,6 @@ def run_stage_1(input_path: str, output_dir: str = "output_data"):
         # Xuất ra file CSV
         df_result.to_csv(out_file, index=False, encoding='utf-8-sig', na_rep='None')
         print(f"  [✓] Đã xuất file: {out_file} ({len(df_result)} dòng)")
-
-if __name__ == "__main__":
-    # Điền file test ở đây
-    input_file = input("Nhập đường dẫn file cần xử lý: ").strip(' "\'')
-    run_stage_1(input_file, output_dir="output_data")
+        created_files.append(out_file)
+    return created_files
+        

@@ -1,0 +1,2 @@
+﻿stt,source_file,data_type,username,password_raw,pin_raw,salt,password_hash,pin_encrypted,is_secure
+1,phieu_thong_tin_demo.jpg,IMAGE_OCR,img_ocr_phieu_thong_tin_demo.jpg,"PHIẾU THÔNG TIN Họ và tên: Nguyễn Thị Hương 15/08/1995 Ngày sinh: Số CCCD: 001095012345 Số điện thoại: 0912 345 678 Email: huong.nguyen@example.com 123 Đường Láng, Quận Đống Đa, Hà Nội Địa chỉ: Số tài khoản NH: 1903 6789 1234 567 Mã hổ sơ: HS-2026-000123",None,None,None,None,None

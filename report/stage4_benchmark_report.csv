@@ -1,0 +1,2 @@
+﻿algorithm,total_samples,avg_decrypt_time_ms,avg_input_size_bytes,avg_output_size_bytes,avg_overhead_ratio
+HYBRID_AES_RSA,50,2.4545059996307828,413.16,12.56,34.67837568425726

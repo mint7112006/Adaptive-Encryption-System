@@ -45,23 +45,31 @@ PROVINCE_CODES = {
 }
 
 def get_gender_century_code(gender: str, birth_year: int) -> str:
-    """
-    Tính mã giới tính + thế kỷ dựa theo quy định:
-    - Thế kỷ 20 (1900-1999): Nam = 0, Nữ = 1
-    - Thế kỷ 21 (2000-2099): Nam = 2, Nữ = 3
-    """
+# Xác định thế kỷ dựa vào năm sinh
     if 1900 <= birth_year <= 1999:
-        return "0" if gender == "Nam" else "1"
+        century_offset = 0
     elif 2000 <= birth_year <= 2099:
-        return "2" if gender == "Nam" else "3"
-    return "0"
+        century_offset = 2
+    elif 2100 <= birth_year <= 2199:
+        century_offset = 4
+    elif 2200 <= birth_year <= 2299:
+        century_offset = 6
+    else:
+        century_offset = 8
+        
+    # Nam: 0, Nữ: 1 (cộng thêm offset thế kỷ)
+    if gender.lower() in ['nam', 'male']:
+        return str(century_offset)
+    else:
+        return str(century_offset + 1)
 
 def generate_vietnam_cccd(gender: str, birth_year: int):
     """
     Sinh CCCD chuẩn định dạng 12 số và trả về kèm Nơi sinh tương ứng
     """
-    # 1. Mã Tỉnh/Thành phố (2 chữ số sau số 0)
+    # 1. Mã Tỉnh/Thành phố (2 chữ số, đảm bảo luôn có số 0 ở đầu nếu < 10)
     prov_code, prov_name = secrets.choice(list(PROVINCE_CODES.items()))
+    prov_code = str(prov_code).zfill(2)
     
     # 2. Mã Giới tính & Thế kỷ (1 chữ số)
     gender_code = get_gender_century_code(gender, birth_year)
@@ -69,10 +77,10 @@ def generate_vietnam_cccd(gender: str, birth_year: int):
     # 3. 2 số cuối năm sinh (2 chữ số)
     year_code = str(birth_year)[-2:]
     
-    # 4. 6 số ngẫu nhiên ngẫu nhiên cuối cùng (6 chữ số)
+    # 4. 6 số ngẫu nhiên cuối cùng (6 chữ số)
     random_suffix = ''.join(secrets.choice("0123456789") for _ in range(6))
     
-    # Ghép lại thành CCCD 12 số chuẩn
+    # Ghép lại thành CCCD 12 số chuẩn (Không có số 0 thừa ở đầu tổng thể)
     cccd_number = f"0{prov_code}{gender_code}{year_code}{random_suffix}"
     
     return cccd_number, prov_name
@@ -180,4 +188,4 @@ def generate_pii_dataset(num_records):
 
 
 if __name__ == "__main__":
-    generate_pii_dataset(2)
+    generate_pii_dataset(1000)

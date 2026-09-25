@@ -1,9 +1,10 @@
 import os
 import time
+import joblib
 
 # Import hàm thực thi từ các file
 from src.stage1_ingest import run_stage_1
-from src.stage2_extract import run_stage_2
+from src.stage2_extract import stage_2_process_with_dt
 
 def main():
     print("=" * 80)
@@ -42,8 +43,11 @@ def main():
     # GIAI ĐOẠN 2: TRÍCH XUẤT ĐẶC ĐIỂM & MÃ HÓA/BẢO VỆ (STAGE 2)
     # ------------------------------------------------------------------
     print("\n[STAGE 2] Bắt đầu nhận kết quả Stage 1 để gán nhãn loại mã hóa bảo mật")
+    # Load mô hình Decision Tree từ thư mục models/
+    dt_model_path = "models/decision_tree_model.pkl"
+    dt_model = joblib.load(dt_model_path)
     # Truyền trực tiếp danh sách đường dẫn file của Stage 1 làm đầu vào cho Stage 2
-    stage2_outputs = run_stage_2(stage1_outputs, output_dir="processed_data")
+    stage2_outputs = stage_2_process_with_dt(stage1_outputs,dt_model ,output_dir="processed_data")
 
 if __name__ == "__main__":
     main()       

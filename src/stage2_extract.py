@@ -116,40 +116,41 @@ def process_dataframe(file_path: str, model_path: str = "context_classifier.pkl"
     df['data_type'] = final_data_types
     return df
 # ==============================================================================
-# 4: HÀM MAP THANG ĐIỂM NHẠY CẢM TRONG STAGE 2
+# 4. CHUYỂN ĐỔI THANG ĐIỂM NHẠY CẢM (0 - 3)
 # ==============================================================================
 def get_sensitivity_level(data_type_str: str) -> int:
-    """Chuyển đổi nhãn chuỗi sang thang điểm số (0 - 3)."""
+    """Chuyển đổi nhãn chuỗi sang thang điểm số phục vụ Decision Tree."""
+    data_type_str = str(data_type_str).upper()
     if "CREDENTIALS" in data_type_str:
         return 3
-    elif "FINANCIAL_PIN" in data_type_str:
+    elif "FINANCIAL_PIN" in data_type_str or "PIN" in data_type_str:
         return 2
     elif "PII" in data_type_str:
         return 1
     return 0
 
 # ==============================================================================
-# 5: TÍCH HỢP ĐẦU VÀO DECISION TREE Ở CUỐI STAGE 2
+# 5. TÍCH HỢP DECISION TREE DỰ ĐOÁN THUẬT TOÁN CHO STAGE 3
 # ==============================================================================
-def stage_2_process_with_dt(df: pd.DataFrame, dt_model) -> pd.DataFrame:
-    # 1. Chạy Regex + Entropy quét dòng (đã làm ở bài trước)
-    df = process_dataframe(df) # Hàm trả về cột 'data_type'
+def stage_2_process_with_dt(file_path, dt_model) -> pd.DataFrame:
+    # 1. Quét Regex + Entropy gán nhãn row-level
+    df = process_dataframe(file_path)
     
     chosen_algorithms = []
     
     for idx, row in df.iterrows():
-        # Trích xuất 2 đặc tính chính
+        # Trích xuất đặc tính 1: Thang điểm nhạy cảm
         sensitivity_level = get_sensitivity_level(str(row['data_type']))
         
-        # Tính kích thước dòng (bytes -> KB)
+        # Trích xuất đặc tính 2: Kích thước dòng dữ liệu (KB)
         row_str = "".join([str(val) for val in row.values if pd.notna(val)])
         data_size_kb = len(row_str.encode('utf-8')) / 1024.0
         
-        # Đưa 2 tham số vào Decision Tree dự đoán thuật toán
+        # Đưa vào Decision Tree dự đoán
         features = [[data_size_kb, sensitivity_level]]
-        predicted_algo = dt_model.predict(features)[0] # VD: 'HYBRID_AES_RSA'
+        predicted_algo = dt_model.predict(features)[0]
         
         chosen_algorithms.append(predicted_algo)
         
     df['chosen_algorithm'] = chosen_algorithms
-    return df # Trả về DataFrame sẵn sàng cho Stage 3
+    return df

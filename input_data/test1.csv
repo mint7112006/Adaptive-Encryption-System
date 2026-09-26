@@ -1,0 +1,3 @@
+stt,ten,gioi_tinh,ngay_sinh,noi_sinh,cccd,sdt,email,dia_chi_nha,the_tin_dung,username,mat_khau,ma_pin,source_file
+1,Trần Thị Bình,Nữ,1990-08-20,Hồ Chí Minh,012345678912,None,None,None,None,None,None,None,test_level_1.csv
+2,Lê Hoàng Cường,Nam,1988-12-01,Đà Nẵng,None,0905123456,cuonglh@gmail.com,None,None,None,None,None,test_level_1.csv

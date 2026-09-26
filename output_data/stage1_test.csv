@@ -1,0 +1,6 @@
+﻿stt,ten,gioi_tinh,ngay_sinh,noi_sinh,cccd,sdt,email,dia_chi_nha,the_tin_dung,username,mat_khau,ma_pin,source_file,data_type,password_raw,pin_raw,salt,password_hash,pin_encrypted,is_secure
+1,Nguyễn Văn An,Nam,1995-05-12,Hà Nội,None,None,None,Số 10 Lê Lợi Hà Nội,None,None,None,None,test.csv,CSV_RAW,None,None,None,None,None,None
+2,Trần Thị Bình,Nữ,1990-08-20,Hồ Chí Minh,12345678912.0,None,None,None,None,None,None,None,test.csv,CSV_RAW,None,None,None,None,None,None
+3,Lê Hoàng Cường,Nam,1988-12-01,Đà Nẵng,None,905123456.0,cuonglh@gmail.com,None,None,None,None,None,test.csv,CSV_RAW,None,None,None,None,None,None
+4,Phạm Minh Đức,Nam,1992-03-15,Hải Phòng,None,None,None,None,None,ducpM,None,8886.0,test.csv,CSV_RAW,None,None,None,None,None,None
+5,Hoàng Thu E,Nữ,1998-11-25,Cần Thơ,None,None,None,None,None,ehoang98,b9Gu<]$f}Lg#1r}h,278867.0,test.csv,CSV_RAW,None,None,None,None,None,None

@@ -1,0 +1,36 @@
+stt,ten,gioi_tinh,ngay_sinh,noi_sinh,cccd,sdt,email,dia_chi_nha,the_tin_dung,username,mat_khau,ma_pin,source_file
+1,Phạm Minh Đức,Nam,1992-03-15,Hải Phòng,None,None,None,None,None,ducpM,None,8886,test_level_2.csv
+2,Vũ Thị Hoa,Nữ,1994-07-19,Quảng Ninh,None,None,None,None,None,hoavt,None,123456,test_level_2.csv
+3,Nguyễn Văn An,Nam,1995-05-12,Hà Nội,None,None,None,None,None,annguyen,None,4582,test_level_2.csv
+4,Trần Thị Bình,Nữ,1990-08-20,Hồ Chí Minh,None,None,None,None,None,binhtt,None,9021,test_level_2.csv
+5,Lê Hoàng Cường,Nam,1988-12-01,Đà Nẵng,None,None,None,None,None,cuonglh,None,1357,test_level_2.csv
+6,Phạm Thị Mai,Nữ,1995-07-22,Hải Phòng,None,None,None,None,None,maipt,None,24680,test_level_2.csv
+7,Hoàng Đức Long,Nam,1991-11-05,Cần Thơ,None,None,None,None,None,longhd,None,7789,test_level_2.csv
+8,Vũ Thùy Linh,Nữ,1996-01-18,Quảng Ninh,None,None,None,None,None,linhvt,None,5543,test_level_2.csv
+9,Bùi Văn Hùng,Nam,1985-09-30,Nam Định,None,None,None,None,None,hungbv,None,9988,test_level_2.csv
+10,Đỗ Minh Thư,Nữ,1999-04-12,Thái Bình,None,None,None,None,None,thudm,None,3321,test_level_2.csv
+11,Ngô Quang Huy,Nam,1993-06-25,Nghệ An,None,None,None,None,None,huynq,None,1122,test_level_2.csv
+12,Dương Thị Lan,Nữ,1994-10-08,Thanh Hóa,None,None,None,None,None,landt,None,6655,test_level_2.csv
+13,Lý Quốc Trung,Nam,1987-02-19,Vũng Tàu,None,None,None,None,None,trunglq,None,4433,test_level_2.csv
+14,Hồ Ngọc Hà,Nữ,1984-11-25,Huế,None,None,None,None,None,hahn,None,8899,test_level_2.csv
+15,Đinh Văn Nam,Nam,1990-12-03,Bắc Ninh,None,None,None,None,None,namdv,None,2233,test_level_2.csv
+16,Phan Minh Tú,Nữ,1997-05-14,Đồng Nai,None,None,None,None,None,tupm,None,6677,test_level_2.csv
+17,Trịnh Công Sơn,Nam,1979-01-09,Đà Lạt,None,None,None,None,None,sontc,None,1029,test_level_2.csv
+18,Cao Thị Thảo,Nữ,1993-08-16,Bình Dương,None,None,None,None,None,thaoct,None,3847,test_level_2.csv
+19,Lương Thế Vinh,Nam,1992-07-21,Hà Nam,None,None,None,None,None,vinhlt,None,5920,test_level_2.csv
+20,Tạ Minh Quang,Nam,1989-03-27,Hưng Yên,None,None,None,None,None,quangtm,None,7412,test_level_2.csv
+21,Phùng Ngọc Quyên,Nữ,1998-10-15,Ninh Bình,None,None,None,None,None,quyenpn,None,8520,test_level_2.csv
+22,Mạc Đĩnh Chi,Nam,1991-12-19,Hải Dương,None,None,None,None,None,chimd,None,9630,test_level_2.csv
+23,Vương Thị Loan,Nữ,1995-02-28,Vĩnh Phúc,None,None,None,None,None,loanvt,None,1478,test_level_2.csv
+24,Chu Văn An,Nam,1986-06-11,Thái Nguyên,None,None,None,None,None,anchu,None,2589,test_level_2.csv
+25,Ứng Duy Khương,Nam,1994-09-04,Phú Thọ,None,None,None,None,None,khuongud,None,3691,test_level_2.csv
+26,Kiều Minh Tuấn,Nam,1988-04-19,Bắc Giang,None,None,None,None,None,tuankm,None,7531,test_level_2.csv
+27,Tăng Thanh Hà,Nữ,1986-10-24,Tiền Giang,None,None,None,None,None,hats,None,8642,test_level_2.csv
+28,Lâm Vĩ Dạ,Nữ,1990-12-12,Long An,None,None,None,None,None,dalv,None,9513,test_level_2.csv
+29,Sơn Tùng,Nam,1994-07-05,Thái Bình,None,None,None,None,None,tungmt,None,3579,test_level_2.csv
+30,Đen Vâu,Nam,1989-05-13,Quảng Ninh,None,None,None,None,None,vaunden,None,1593,test_level_2.csv
+31,Hồ Văn Quý,Nam,1993-01-30,Bình Thuận,None,None,None,None,None,quyhv,None,4826,test_level_2.csv
+32,Võ Hoàng Yến,Nữ,1988-10-09,An Giang,None,None,None,None,None,yenvh,None,7395,test_level_2.csv
+33,Bùi Tiến Dũng,Nam,1997-02-28,Thanh Hóa,None,None,None,None,None,dungbt,None,2948,test_level_2.csv
+34,Nguyễn Quang Hải,Nam,1997-04-12,Hà Nội,None,None,None,None,None,hainq,None,6183,test_level_2.csv
+35,Đoàn Văn Hậu,Nam,1999-04-19,Thái Bình,None,None,None,None,None,haudv,None,9204,test_level_2.csv

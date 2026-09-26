@@ -230,33 +230,16 @@ def stage_2_process_with_dt(created_files: List[str], dt_model, output_dir: str 
 
     for file_path in created_files:
         df = process_dataframe(file_path)
-        
-        # 1. Lấy kích thước thực tế của toàn bộ file trên ổ đĩa (tính bằng KB)
-        file_size_bytes = os.path.getsize(file_path)
-        file_size_kb = round(file_size_bytes / 1024.0, 4)  # Đã sửa lỗi thiếu dấu ngoặc đóng ở đây
-        
-        original_data_cols = [col for col in df.columns if col not in SYSTEM_COLUMNS and col not in ['data_size_kb', 'sensitivity_level']]
-        
-        data_sizes = []
         sensitivity_levels = []
         
         for idx, row in df.iterrows():
             s_level = get_sensitivity_level(str(row['data_type']))
-            
-            # Nếu file lớn và chứa PII/Credentials (tổng file nặng > 5KB), 
-            # ta có thể ép hoặc giữ nguyên s_level để mô hình đẩy lên mức bảo mật cao.
-            # (Tuỳ chọn: Nếu muốn ép toàn bộ file PII 1000 dòng thành Hybrid, có thể quy đổi s_level = 3 nếu file_size_kb > 10.0)
-            if file_size_kb > 10.0 and s_level >= 1:
-                s_level = 3  # Đẩy lên mức tối đa để kích hoạt HYBRID_AES_RSA trong cây quyết định
-
-            data_sizes.append(file_size_kb)
             sensitivity_levels.append(s_level)
 
-        df['data_size_kb'] = data_sizes
         df['sensitivity_level'] = sensitivity_levels
 
         # Batch Prediction tối ưu hiệu năng
-        features_df = df[['data_size_kb', 'sensitivity_level']]
+        features_df = df[['sensitivity_level']]
         pred_codes = dt_model.predict(features_df)
 
         df['chosen_algorithm'] = [ALGO_MAP.get(code, "NONE") for code in pred_codes]

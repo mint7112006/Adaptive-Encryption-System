@@ -37,4 +37,4 @@ def generate_pii_dataset(num_records):
 
 
 if __name__ == "__main__":
-    generate_pii_dataset(50)
+    generate_pii_dataset(10)

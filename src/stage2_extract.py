@@ -108,6 +108,26 @@ def analyze_column_types(df: pd.DataFrame) -> Set[str]:
 # ==============================================================================
 # 3. KIỂM TRA TỪNG Ô DỮ LIỆU (CELL-LEVEL INSPECTION)
 # ==============================================================================
+def is_likely_username(val_str: str, col_name: str = "") -> bool:
+    val_str = str(val_str).strip()
+    if not val_str or val_str.lower() in NULL_VALUES:
+        return False
+    
+    col_lower = str(col_name).lower()
+    # Nếu tên cột có chứa các từ khóa gợi ý tên đăng nhập
+    if any(kw in col_lower for kw in ['user', 'account', 'uid', 'tai_khoan', 'login']):
+        return True
+        
+    # Hoặc nếu giá trị có dạng email hoặc chuỗi ký tự liền không dấu, không khoảng trắng quá dài
+    if PATTERNS["PII_EMAIL"].match(val_str):
+        return True
+        
+    if 3 <= len(val_str) <= 30 and not ' ' in val_str and not any(c.isdigit() for c in val_str):
+        return True
+        
+    return False
+
+
 def inspect_cell_value(val_str: str, is_ignored_col: bool, col_name: str = "") -> Tuple[Optional[str], Optional[str]]:
     val_str = str(val_str).strip()
     if not val_str or val_str.lower() in NULL_VALUES:
@@ -167,6 +187,8 @@ def process_dataframe(file_path: str) -> pd.DataFrame:
         df['password_raw'] = 'None'
     if 'pin_raw' not in df.columns:
         df['pin_raw'] = 'None'
+    if 'username' not in df.columns:
+        df['username'] = 'None'
 
     final_data_types = []
 
@@ -176,6 +198,11 @@ def process_dataframe(file_path: str) -> pd.DataFrame:
         for col in scan_cols:
             val = str(row[col]).strip()
             is_ignored = col in ignored_code_cols
+            # --- BỔ SUNG LOGIC BẮT USERNAME ---
+            col_lower = col.lower()
+            if any(kw in col_lower for kw in ['user', 'account', 'uid', 'tai_khoan']) and val.lower() not in NULL_VALUES:
+                df.at[idx, 'username'] = val
+            # ----------------------------------
             
             match_type, special_type = inspect_cell_value(val, is_ignored, col_name=col)
 
